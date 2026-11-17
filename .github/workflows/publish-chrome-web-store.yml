@@ -1,0 +1,104 @@
+# Uploads (and optionally publishes) the extension to the Chrome Web Store via API v2.
+#
+# Disabled by default: runs only when triggered by hand AND the repository
+# variable CWS_PUBLISH_ENABLED is set to "true".
+#
+# One-time setup (see README → "Publishing to the Chrome Web Store"):
+#   Variables: CWS_PUBLISH_ENABLED, CWS_PUBLISHER_ID, CWS_EXTENSION_ID
+#   Secrets:   CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN
+#
+# The first version must be uploaded manually in the Developer Dashboard;
+# the API can only update existing items.
+name: Publish to Chrome Web Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Submit for review after uploading (otherwise upload a draft only)"
+        type: boolean
+        default: false
+      staged:
+        description: "Staged publish: after approval, wait for a manual publish in the dashboard"
+        type: boolean
+        default: true
+  # Uncomment to publish whenever a GitHub release is published:
+  # release:
+  #   types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-web-store
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: vars.CWS_PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+    env:
+      API: https://chromewebstore.googleapis.com
+      ITEM: publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_EXTENSION_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.21.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm run zip
+
+      - name: Get OAuth access token
+        env:
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          token=$(curl -fsS https://oauth2.googleapis.com/token \
+            -d client_id="${CLIENT_ID}" \
+            -d client_secret="${CLIENT_SECRET}" \
+            -d refresh_token="${REFRESH_TOKEN}" \
+            -d grant_type=refresh_token | jq -r .access_token)
+          if [ -z "${token}" ] || [ "${token}" = "null" ]; then
+            echo "::error::Could not obtain an access token"
+            exit 1
+          fi
+          echo "::add-mask::${token}"
+          echo "CWS_TOKEN=${token}" >> "${GITHUB_ENV}"
+
+      - name: Upload package
+        run: |
+          res=$(curl -sS -X POST \
+            -H "Authorization: Bearer ${CWS_TOKEN}" \
+            -H "Content-Type: application/zip" \
+            --data-binary @lt-checker.zip \
+            "${API}/upload/v2/${ITEM}:upload")
+          echo "${res}" | jq .
+          state=$(echo "${res}" | jq -r '.uploadState // empty')
+          case "${state}" in
+            SUCCEEDED) ;;
+            IN_PROGRESS) echo "Upload still processing; waiting"; sleep 30 ;;
+            *) echo "::error::Upload failed (${state:-no state})"; exit 1 ;;
+          esac
+
+      - name: Submit for review
+        if: inputs.publish || github.event_name == 'release'
+        env:
+          PUBLISH_TYPE: ${{ (inputs.staged || github.event_name == 'release') && 'STAGED_PUBLISH' || 'DEFAULT_PUBLISH' }}
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${CWS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"publishType\": \"${PUBLISH_TYPE}\"}" \
+            "${API}/v2/${ITEM}:publish" | jq .
+
+      - name: Item status
+        if: always() && env.CWS_TOKEN != ''
+        run: |
+          curl -sS -H "Authorization: Bearer ${CWS_TOKEN}" "${API}/v2/${ITEM}:fetchStatus" | jq .

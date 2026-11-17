@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LT Checker options</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #1c2024;
+        --muted: #60646c;
+        --bg: #fff;
+        --line: #d9d9e0;
+        --accent: #3e63dd;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #edeef0;
+          --muted: #b0b4ba;
+          --bg: #111113;
+          --line: #363a3f;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 0 16px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 24px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin: 18px 0 4px;
+      }
+      small {
+        display: block;
+        color: var(--muted);
+        font-weight: 400;
+      }
+      input[type="text"],
+      input[type="url"],
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+      }
+      textarea {
+        min-height: 90px;
+        font-family: ui-monospace, monospace;
+        font-size: 13px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .check {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-weight: 600;
+        margin-top: 18px;
+      }
+      button {
+        padding: 6px 14px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .actions {
+        margin-top: 24px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      #status[data-ok="false"] {
+        color: #e5484d;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>LT Checker</h1>
+
+      <label for="serverUrl"
+        >LanguageTool server <small>Base URL; <code>/v2/check</code> is appended.</small></label
+      >
+      <div class="row">
+        <input id="serverUrl" type="url" required />
+        <button id="test" type="button">Test</button>
+      </div>
+
+      <label for="apiToken"
+        >API token
+        <small>Sent as <code>Authorization: Bearer …</code>. Leave empty if none.</small></label
+      >
+      <input id="apiToken" type="password" autocomplete="off" />
+
+      <label for="language"
+        >Language
+        <small
+          ><code>auto</code> to detect, or a code such as <code>en-US</code>,
+          <code>pt-BR</code>.</small
+        ></label
+      >
+      <input id="language" type="text" list="langs" />
+
+      <label for="preferredVariants"
+        >Preferred variants (auto mode only)
+        <small
+          >Comma-separated, one per language, e.g. <code>en-US,de-DE,pt-BR</code>.</small
+        ></label
+      >
+      <input id="preferredVariants" type="text" />
+
+      <label for="motherTongue"
+        >Mother tongue <small>Optional. Enables false-friend checks.</small></label
+      >
+      <input id="motherTongue" type="text" list="langs" />
+
+      <label class="check"
+        ><input id="picky" type="checkbox" /> Picky mode (more style suggestions)</label
+      >
+
+      <label for="dictionary">Personal dictionary <small>One word per line.</small></label>
+      <textarea id="dictionary"></textarea>
+
+      <label for="disabledRules">Disabled rules <small>One rule ID per line.</small></label>
+      <textarea id="disabledRules"></textarea>
+
+      <label for="disabledSites"
+        >Disabled sites
+        <small>One hostname per line. The toolbar button toggles the current site.</small></label
+      >
+      <textarea id="disabledSites"></textarea>
+
+      <div class="actions">
+        <button id="save" class="primary" type="button">Save</button>
+        <span id="status" role="status"></span>
+      </div>
+      <datalist id="langs"></datalist>
+    </main>
+    <script type="module" src="./options.ts"></script>
+  </body>
+</html>
